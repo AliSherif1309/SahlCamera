@@ -97,7 +97,7 @@ class MainActivity : ComponentActivity() {
         SahlCore.catchCrashes(this)
         prefs = Prefs(this)
         shutterAudio.preload()
-        Updater.scheduleDaily(this)
+        UpdatePrompt.checkOnStart(this)
 
         val action = intent?.action
         isExternalImageIntent = action == MediaStore.ACTION_IMAGE_CAPTURE

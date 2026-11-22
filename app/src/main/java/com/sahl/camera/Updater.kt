@@ -101,3 +101,35 @@ class UpdateCheckReceiver : BroadcastReceiver() {
         Thread { try { Updater.dailyCheck(c.applicationContext) } finally { done.finish() } }.start()
     }
 }
+
+object UpdatePrompt {
+    private var checked = false
+
+    fun checkOnStart(a: android.app.Activity) {
+        Updater.scheduleDaily(a)
+        if (checked) return
+        checked = true
+        Thread {
+            Updater.fetchNewer()?.let { r ->
+                a.runOnUiThread { if (!a.isFinishing && !a.isDestroyed) offer(a, r) }
+            }
+        }.start()
+    }
+
+    private fun offer(a: android.app.Activity, r: Updater.Release) {
+        android.app.AlertDialog.Builder(a)
+            .setTitle(Updater.availableText(a, r))
+            .setMessage(r.notes.ifBlank { Updater.tr(a, "A new version of Sahl Camera is ready.", "إصدار جديد من كاميرا سهل جاهز.") })
+            .setPositiveButton(Updater.updateNowText(a)) { _, _ ->
+                Updater.downloadAndInstall(a, r)
+                android.widget.Toast.makeText(
+                    a,
+                    Updater.tr(a, "Downloading in your browser — tap the download when it finishes to install",
+                        "جارٍ التنزيل في المتصفح — اضغط على الملف بعد انتهاء التنزيل لتثبيته"),
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+            }
+            .setNegativeButton(Updater.tr(a, "Later", "لاحقًا"), null)
+            .show()
+    }
+}
