@@ -2,11 +2,13 @@ package com.sahl.camera
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CaptureRequest
 import android.location.Location
 import android.net.Uri
 import android.view.Surface
 import androidx.annotation.OptIn
+import androidx.camera.camera2.interop.Camera2CameraInfo
 import androidx.camera.camera2.interop.Camera2Interop
 import androidx.camera.camera2.interop.ExperimentalCamera2Interop
 import androidx.camera.core.Camera
@@ -15,6 +17,7 @@ import androidx.camera.core.CameraSelector
 import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
+import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.core.resolutionselector.AspectRatioStrategy
 import androidx.camera.core.resolutionselector.ResolutionSelector
@@ -155,10 +158,31 @@ class CameraEngine(
             .setAspectRatioStrategy(aspectStrategy)
             .build()
 
-        val preview = Preview.Builder()
+        val targetInfo = activeProvider.availableCameraInfos.firstOrNull { selector.filter(listOf(it)).isNotEmpty() }
+        val chars = targetInfo?.let {
+            try { Camera2CameraInfo.from(it) } catch (_: Exception) { null }
+        }
+        val supportsFaceDetect = chars?.getCameraCharacteristic(CameraCharacteristics.STATISTICS_INFO_AVAILABLE_FACE_DETECT_MODES)
+            ?.contains(CameraCharacteristics.STATISTICS_FACE_DETECT_MODE_SIMPLE) == true
+        val supportsOis = chars?.getCameraCharacteristic(CameraCharacteristics.LENS_INFO_AVAILABLE_OPTICAL_STABILIZATION)
+            ?.contains(CameraCharacteristics.LENS_OPTICAL_STABILIZATION_MODE_ON) == true
+        val supportsSceneHdr = chars?.getCameraCharacteristic(CameraCharacteristics.CONTROL_AVAILABLE_SCENE_MODES)
+            ?.contains(CameraCharacteristics.CONTROL_SCENE_MODE_HDR) == true
+
+        val previewBuilder = Preview.Builder()
             .setResolutionSelector(previewResolutionSelector)
             .setTargetRotation(rotation)
-            .build()
+
+        Camera2Interop.Extender(previewBuilder).apply {
+            if (supportsFaceDetect) {
+                setCaptureRequestOption(CaptureRequest.STATISTICS_FACE_DETECT_MODE, CaptureRequest.STATISTICS_FACE_DETECT_MODE_SIMPLE)
+            }
+            if (supportsOis) {
+                setCaptureRequestOption(CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE, CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE_ON)
+            }
+        }
+
+        val preview = previewBuilder.build()
             .also { it.setSurfaceProvider(previewView.surfaceProvider) }
 
         activeProvider.unbindAll()
@@ -201,6 +225,17 @@ class CameraEngine(
                     setCaptureRequestOption(CaptureRequest.COLOR_CORRECTION_MODE, CaptureRequest.COLOR_CORRECTION_MODE_HIGH_QUALITY)
                     setCaptureRequestOption(CaptureRequest.TONEMAP_MODE, CaptureRequest.TONEMAP_MODE_HIGH_QUALITY)
                     setCaptureRequestOption(CaptureRequest.SHADING_MODE, CaptureRequest.SHADING_MODE_HIGH_QUALITY)
+                    setCaptureRequestOption(CaptureRequest.HOT_PIXEL_MODE, CaptureRequest.HOT_PIXEL_MODE_HIGH_QUALITY)
+                    if (supportsFaceDetect) {
+                        setCaptureRequestOption(CaptureRequest.STATISTICS_FACE_DETECT_MODE, CaptureRequest.STATISTICS_FACE_DETECT_MODE_SIMPLE)
+                    }
+                    if (supportsOis) {
+                        setCaptureRequestOption(CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE, CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE_ON)
+                    }
+                    if (supportsSceneHdr && (photoMode == PhotoQualityMode.QUALITY || photoMode == PhotoQualityMode.HDR) && !isHdrSupported) {
+                        setCaptureRequestOption(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_USE_SCENE_MODE)
+                        setCaptureRequestOption(CaptureRequest.CONTROL_SCENE_MODE, CaptureRequest.CONTROL_SCENE_MODE_HDR)
+                    }
                 }
             }
 
@@ -318,6 +353,70 @@ class CameraEngine(
                 }
             }
         )
+    }
+
+    fun takeHdrPhoto(
+        folder: SaveFolder,
+        mirrorFront: Boolean,
+        location: Location?,
+        onSaved: (Uri) -> Unit,
+        onFailed: (String) -> Unit
+    ) {
+        val ic = imageCapture ?: return
+        val cam = camera
+        val exp = cam?.cameraInfo?.exposureState
+        if (isHdrSupported || cam == null || exp == null || !exp.isExposureCompensationSupported) {
+            takePhoto(folder, mirrorFront, location, onSaved, onFailed)
+            return
+        }
+
+        val range = exp.exposureCompensationRange
+        val baseEv = exp.exposureCompensationIndex
+        val step = exp.exposureCompensationStep.toFloat().coerceAtLeast(0.1f)
+        val delta = kotlin.math.round(1.2f / step).toInt().coerceAtLeast(1)
+        val evTargets = listOf(
+            baseEv,
+            (baseEv - delta).coerceIn(range.lower, range.upper),
+            (baseEv + delta).coerceIn(range.lower, range.upper)
+        )
+        val mirror = (lensFacing == CameraSelector.LENS_FACING_FRONT) && mirrorFront
+        val frames = mutableListOf<HdrProcessor.RawFrame>()
+
+        fun captureNext(idx: Int) {
+            if (idx >= evTargets.size) {
+                cam.cameraControl.setExposureCompensationIndex(baseEv)
+                Thread {
+                    val uri = HdrProcessor.fuseAndSave(context, frames, folder, location)
+                    mainExecutor.execute {
+                        if (uri != null) onSaved(uri) else onFailed("HDR fusion failed")
+                    }
+                }.start()
+                return
+            }
+
+            val targetEv = evTargets[idx]
+            val evFuture = cam.cameraControl.setExposureCompensationIndex(targetEv)
+            evFuture.addListener({
+                previewView.postDelayed({
+                    ic.takePicture(
+                        mainExecutor,
+                        object : ImageCapture.OnImageCapturedCallback() {
+                            override fun onCaptureSuccess(image: ImageProxy) {
+                                frames.add(HdrProcessor.imageProxyToRawFrame(image, mirror))
+                                captureNext(idx + 1)
+                            }
+
+                            override fun onError(exception: ImageCaptureException) {
+                                cam.cameraControl.setExposureCompensationIndex(baseEv)
+                                onFailed(exception.message ?: "HDR capture error")
+                            }
+                        }
+                    )
+                }, if (idx == 0) 0L else 120L)
+            }, mainExecutor)
+        }
+
+        captureNext(0)
     }
 
     fun takePhotoToUri(
