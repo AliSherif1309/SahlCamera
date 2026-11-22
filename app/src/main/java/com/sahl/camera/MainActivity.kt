@@ -561,9 +561,9 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun cyclePhotoMode() {
-        val available = mutableListOf(PhotoQualityMode.FAST, PhotoQualityMode.QUALITY)
-        if (cameraEngine.isHdrSupported) available.add(PhotoQualityMode.HDR)
+        val available = mutableListOf(PhotoQualityMode.QUALITY, PhotoQualityMode.HDR)
         if (cameraEngine.isNightSupported) available.add(PhotoQualityMode.NIGHT)
+        available.add(PhotoQualityMode.FAST)
         val idx = available.indexOf(prefs.photoMode)
         val next = available[(idx + 1) % available.size]
         prefs.photoMode = next
@@ -719,22 +719,23 @@ class MainActivity : ComponentActivity() {
         }
 
         val loc = if (prefs.saveLocation) getLastKnownLocation() else null
-        cameraEngine.takePhoto(
-            folder = prefs.saveFolder,
-            mirrorFront = prefs.mirrorFront,
-            location = loc,
-            onSaved = { uri ->
-                if (isExternalImageIntent) {
-                    setResult(RESULT_OK, Intent().setData(uri))
-                    finish()
-                } else {
-                    updateThumbnailFromUri(uri, false)
-                }
-            },
-            onFailed = { msg ->
-                Toast.makeText(this, "${getString(R.string.capture_failed)}: $msg", Toast.LENGTH_SHORT).show()
+        val onSaved: (Uri) -> Unit = { uri ->
+            if (isExternalImageIntent) {
+                setResult(RESULT_OK, Intent().setData(uri))
+                finish()
+            } else {
+                updateThumbnailFromUri(uri, false)
             }
-        )
+        }
+        val onFailed: (String) -> Unit = { msg ->
+            Toast.makeText(this, "${getString(R.string.capture_failed)}: $msg", Toast.LENGTH_SHORT).show()
+        }
+
+        if (prefs.photoMode == PhotoQualityMode.HDR) {
+            cameraEngine.takeHdrPhoto(prefs.saveFolder, prefs.mirrorFront, loc, onSaved, onFailed)
+        } else {
+            cameraEngine.takePhoto(prefs.saveFolder, prefs.mirrorFront, loc, onSaved, onFailed)
+        }
     }
 
     @SuppressLint("MissingPermission")

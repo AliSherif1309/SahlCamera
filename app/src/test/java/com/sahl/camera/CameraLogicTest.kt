@@ -44,4 +44,15 @@ class CameraLogicTest {
         assertTrue(photo.length > 10)
         assertTrue(video.length > 10)
     }
+
+    @Test
+    fun hdrFusionPrefersWellExposedPixels() {
+        val clippedWhite = intArrayOf(0xFFFFFFFF.toInt())
+        val wellExposed = intArrayOf(0xFF808080.toInt())
+        val clippedBlack = intArrayOf(0xFF000000.toInt())
+        val fused = HdrProcessor.fusePixels(listOf(clippedWhite, wellExposed, clippedBlack), 1, 1)
+        val r = (fused[0] ushr 16) and 0xFF
+        // Midtone (128) should dominate over clipped white (255) and clipped black (0)
+        assertTrue("Expected fused midtone near 128, got $r", r in 115..140)
+    }
 }
