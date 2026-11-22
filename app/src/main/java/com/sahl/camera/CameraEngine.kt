@@ -61,6 +61,14 @@ class CameraEngine(
         private set
     var isAutoExtSupported: Boolean = false
         private set
+    var currentRotation: Int = Surface.ROTATION_0
+        private set
+
+    fun setTargetRotation(rotation: Int) {
+        currentRotation = rotation
+        imageCapture?.targetRotation = rotation
+        videoCapture?.targetRotation = rotation
+    }
 
     var onZoomRangeChanged: ((minZoom: Float, maxZoom: Float, currentZoom: Float) -> Unit)? = null
     var onExposureRangeChanged: ((minIndex: Int, maxIndex: Int, currentIndex: Int) -> Unit)? = null
@@ -214,12 +222,13 @@ class CameraEngine(
                 .setCaptureMode(captureMode)
                 .setResolutionSelector(photoResolutionSelector)
                 .setFlashMode(mapFlashMode(flashMode))
-                .setTargetRotation(rotation)
+                .setTargetRotation(currentRotation)
                 .setJpegQuality(if (photoMode == PhotoQualityMode.FAST) 95 else 100)
 
             if (photoMode != PhotoQualityMode.FAST) {
                 Camera2Interop.Extender(icBuilder).apply {
                     setCaptureRequestOption(CaptureRequest.CONTROL_ENABLE_ZSL, false)
+                    setCaptureRequestOption(CaptureRequest.CONTROL_AE_ANTIBANDING_MODE, CaptureRequest.CONTROL_AE_ANTIBANDING_MODE_AUTO)
                     setCaptureRequestOption(CaptureRequest.EDGE_MODE, CaptureRequest.EDGE_MODE_HIGH_QUALITY)
                     setCaptureRequestOption(CaptureRequest.NOISE_REDUCTION_MODE, CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY)
                     setCaptureRequestOption(CaptureRequest.COLOR_CORRECTION_MODE, CaptureRequest.COLOR_CORRECTION_MODE_HIGH_QUALITY)
