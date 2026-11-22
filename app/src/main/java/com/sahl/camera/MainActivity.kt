@@ -40,6 +40,8 @@ class MainActivity : ComponentActivity() {
     private val shutterAudio = MediaSaver.ShutterAudio()
 
     private lateinit var permissionOverlay: LinearLayout
+    private lateinit var viewfinderFrame: FrameLayout
+    private lateinit var bottomContainer: LinearLayout
     private lateinit var topBar: LinearLayout
     private lateinit var btnFlash: TextView
     private lateinit var btnQuality: TextView
@@ -202,7 +204,7 @@ class MainActivity : ComponentActivity() {
         }
         root.addView(mainColumn, FrameLayout.LayoutParams(-1, -1))
 
-        val viewfinderFrame = FrameLayout(this).apply {
+        viewfinderFrame = FrameLayout(this).apply {
             setBackgroundColor(Color.BLACK)
         }
 
@@ -303,8 +305,10 @@ class MainActivity : ComponentActivity() {
         topBar.addView(btnTimer)
         topBar.addView(spacer)
         topBar.addView(btnSettings)
+        val screenW = resources.displayMetrics.widthPixels
+        val fourByThreeH = (screenW * 4f / 3f).toInt()
         mainColumn.addView(topBar, LinearLayout.LayoutParams(-1, -2))
-        mainColumn.addView(viewfinderFrame, LinearLayout.LayoutParams(-1, 0, 1f))
+        mainColumn.addView(viewfinderFrame, LinearLayout.LayoutParams(-1, fourByThreeH))
 
         // Recording Timer Badge
         recordingBadge = TextView(this).apply {
@@ -517,7 +521,7 @@ class MainActivity : ComponentActivity() {
         shutterRow.addView(rightSlot)
         bottomContainer.addView(shutterRow, LinearLayout.LayoutParams(-1, -2))
 
-        mainColumn.addView(bottomContainer, LinearLayout.LayoutParams(-1, -2))
+        mainColumn.addView(bottomContainer, LinearLayout.LayoutParams(-1, 0, 1f))
 
         // Permission Overlay
         permissionOverlay = LinearLayout(this).apply {
@@ -589,6 +593,15 @@ class MainActivity : ComponentActivity() {
         tabVideo.background = if (isVideoMode) GradientDrawable().apply { setColor(accent); cornerRadius = 40f } else null
 
         (shutterInner.background as? GradientDrawable)?.setColor(if (isVideoMode) Color.parseColor("#E53935") else Color.WHITE)
+
+        val screenW = resources.displayMetrics.widthPixels
+        if (isVideoMode) {
+            viewfinderFrame.layoutParams = LinearLayout.LayoutParams(-1, 0, 1f)
+            bottomContainer.layoutParams = LinearLayout.LayoutParams(-1, -2)
+        } else {
+            viewfinderFrame.layoutParams = LinearLayout.LayoutParams(-1, (screenW * 4f / 3f).toInt())
+            bottomContainer.layoutParams = LinearLayout.LayoutParams(-1, 0, 1f)
+        }
     }
 
     private fun updateZoomPills(currentZoom: Float) {
