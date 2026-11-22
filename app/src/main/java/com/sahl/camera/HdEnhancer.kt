@@ -165,7 +165,7 @@ object HdEnhancer {
         val uri = cr.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values) ?: return null
         return try {
             cr.openOutputStream(uri)?.use { os ->
-                bmp.compress(Bitmap.CompressFormat.JPEG, 98, os)
+                bmp.compress(Bitmap.CompressFormat.JPEG, 95, os)
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 val done = ContentValues().apply { put(MediaStore.Images.Media.IS_PENDING, 0) }
