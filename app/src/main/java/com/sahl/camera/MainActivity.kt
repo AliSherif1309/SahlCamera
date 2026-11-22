@@ -352,7 +352,10 @@ class MainActivity : ComponentActivity() {
             layoutParams = LinearLayout.LayoutParams((130 * dp).toInt(), -2)
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(sb: SeekBar?, progress: Int, fromUser: Boolean) {
-                    if (fromUser) cameraEngine.setExposureIndex(exposureMin + progress)
+                    if (fromUser) {
+                        cameraEngine.userAdjustedExposure = true
+                        cameraEngine.setExposureIndex(exposureMin + progress)
+                    }
                 }
                 override fun onStartTrackingTouch(sb: SeekBar?) {}
                 override fun onStopTrackingTouch(sb: SeekBar?) {}
