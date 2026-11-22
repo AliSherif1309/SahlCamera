@@ -2,9 +2,13 @@ package com.sahl.camera
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.hardware.camera2.CaptureRequest
 import android.location.Location
 import android.net.Uri
 import android.view.Surface
+import androidx.annotation.OptIn
+import androidx.camera.camera2.interop.Camera2Interop
+import androidx.camera.camera2.interop.ExperimentalCamera2Interop
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraInfo
 import androidx.camera.core.CameraSelector
@@ -12,6 +16,9 @@ import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
+import androidx.camera.core.resolutionselector.AspectRatioStrategy
+import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.extensions.ExtensionMode
 import androidx.camera.extensions.ExtensionsManager
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -53,6 +60,7 @@ class CameraEngine(
     var onZoomRangeChanged: ((minZoom: Float, maxZoom: Float, currentZoom: Float) -> Unit)? = null
     var onExposureRangeChanged: ((minIndex: Int, maxIndex: Int, currentIndex: Int) -> Unit)? = null
     var onRecordingStateChanged: ((isRecording: Boolean, isPaused: Boolean, durationSec: Long) -> Unit)? = null
+    var onExtensionsProbed: (() -> Unit)? = null
     var onError: ((String) -> Unit)? = null
 
     fun start(
@@ -78,10 +86,12 @@ class CameraEngine(
                         try {
                             extensionsManager = extFuture.get()
                             refreshExtensionSupport()
+                            onExtensionsProbed?.invoke()
                         } catch (_: Exception) { }
                     }, mainExecutor)
                 } else {
                     refreshExtensionSupport()
+                    onExtensionsProbed?.invoke()
                 }
             } catch (e: Exception) {
                 onError?.invoke(e.message ?: "Camera init failed")
@@ -116,6 +126,7 @@ class CameraEngine(
         }
     }
 
+    @OptIn(ExperimentalCamera2Interop::class)
     fun bindUseCases(
         provider: ProcessCameraProvider? = cameraProvider,
         photoMode: PhotoQualityMode,
@@ -126,7 +137,18 @@ class CameraEngine(
         val selector = resolveEffectiveSelector(photoMode)
         val rotation = previewView.display?.rotation ?: Surface.ROTATION_0
 
+        val aspectStrategy = if (isVideoMode) {
+            AspectRatioStrategy.RATIO_16_9_FALLBACK_AUTO_STRATEGY
+        } else {
+            AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY
+        }
+
+        val previewResolutionSelector = ResolutionSelector.Builder()
+            .setAspectRatioStrategy(aspectStrategy)
+            .build()
+
         val preview = Preview.Builder()
+            .setResolutionSelector(previewResolutionSelector)
             .setTargetRotation(rotation)
             .build()
             .also { it.setSurfaceProvider(previewView.surfaceProvider) }
@@ -151,12 +173,29 @@ class CameraEngine(
             camera = activeProvider.bindToLifecycle(lifecycleOwner, selector, preview, vc)
         } else {
             val captureMode = selectCaptureMode(activeProvider, selector, photoMode)
-            val ic = ImageCapture.Builder()
+            val photoResolutionSelector = ResolutionSelector.Builder()
+                .setAspectRatioStrategy(AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY)
+                .setResolutionStrategy(ResolutionStrategy.HIGHEST_AVAILABLE_STRATEGY)
+                .build()
+
+            val icBuilder = ImageCapture.Builder()
                 .setCaptureMode(captureMode)
+                .setResolutionSelector(photoResolutionSelector)
                 .setFlashMode(mapFlashMode(flashMode))
                 .setTargetRotation(rotation)
-                .setJpegQuality(if (photoMode == PhotoQualityMode.FAST) 92 else 98)
-                .build()
+                .setJpegQuality(if (photoMode == PhotoQualityMode.FAST) 95 else 100)
+
+            if (photoMode != PhotoQualityMode.FAST) {
+                Camera2Interop.Extender(icBuilder).apply {
+                    setCaptureRequestOption(CaptureRequest.EDGE_MODE, CaptureRequest.EDGE_MODE_HIGH_QUALITY)
+                    setCaptureRequestOption(CaptureRequest.NOISE_REDUCTION_MODE, CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY)
+                    setCaptureRequestOption(CaptureRequest.COLOR_CORRECTION_MODE, CaptureRequest.COLOR_CORRECTION_MODE_HIGH_QUALITY)
+                    setCaptureRequestOption(CaptureRequest.TONEMAP_MODE, CaptureRequest.TONEMAP_MODE_HIGH_QUALITY)
+                    setCaptureRequestOption(CaptureRequest.SHADING_MODE, CaptureRequest.SHADING_MODE_HIGH_QUALITY)
+                }
+            }
+
+            val ic = icBuilder.build()
             imageCapture = ic
             videoCapture = null
             camera = activeProvider.bindToLifecycle(lifecycleOwner, selector, preview, ic)

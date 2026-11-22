@@ -56,6 +56,12 @@ object MediaSaver {
 
     data class LatestMedia(val uri: Uri, val isVideo: Boolean, val thumbnail: Bitmap?)
 
+    fun loadThumbnailForUri(context: Context, uri: Uri): Bitmap? = try {
+        context.contentResolver.loadThumbnail(uri, Size(160, 160), null)
+    } catch (_: Exception) {
+        null
+    }
+
     fun loadLatestMedia(context: Context, folder: SaveFolder): LatestMedia? {
         return try {
             val cr = context.contentResolver
