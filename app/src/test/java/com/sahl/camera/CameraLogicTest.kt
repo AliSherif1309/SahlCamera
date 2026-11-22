@@ -46,13 +46,13 @@ class CameraLogicTest {
     }
 
     @Test
-    fun hdrFusionPrefersWellExposedPixels() {
-        val clippedWhite = intArrayOf(0xFFFFFFFF.toInt())
-        val wellExposed = intArrayOf(0xFF808080.toInt())
-        val clippedBlack = intArrayOf(0xFF000000.toInt())
-        val fused = HdrProcessor.fusePixels(listOf(clippedWhite, wellExposed, clippedBlack), 1, 1)
-        val r = (fused[0] ushr 16) and 0xFF
-        // Midtone (128) lifted by tone curve should dominate over clipped white (255) and clipped black (0)
-        assertTrue("Expected fused lifted midtone in 135..175, got $r", r in 135..175)
+    fun hdEnhancerAdaptsToSceneBrightness() {
+        assertEquals(1.0f, HdEnhancer.computeAdaptiveGamma(170f), 0.001f)
+        assertTrue(HdEnhancer.computeAdaptiveGamma(120f) < 0.95f)
+
+        val darkFrame = IntArray(9) { 0xFF606060.toInt() }
+        val enhanced = HdEnhancer.enhancePixels(darkFrame, 3, 3)
+        val r = (enhanced[4] ushr 16) and 0xFF
+        assertTrue("Expected dark midtone (96) to lift, got $r", r > 96)
     }
 }
