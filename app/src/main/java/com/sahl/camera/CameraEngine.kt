@@ -56,6 +56,8 @@ class CameraEngine(
         private set
     var isNightSupported: Boolean = false
         private set
+    var isAutoExtSupported: Boolean = false
+        private set
 
     var onZoomRangeChanged: ((minZoom: Float, maxZoom: Float, currentZoom: Float) -> Unit)? = null
     var onExposureRangeChanged: ((minIndex: Int, maxIndex: Int, currentIndex: Int) -> Unit)? = null
@@ -85,7 +87,11 @@ class CameraEngine(
                     extFuture.addListener({
                         try {
                             extensionsManager = extFuture.get()
+                            val hadAuto = isAutoExtSupported
                             refreshExtensionSupport()
+                            if (!hadAuto && isAutoExtSupported && photoMode == PhotoQualityMode.QUALITY && !isVideoMode) {
+                                bindUseCases(provider, photoMode, videoResolution, flashMode)
+                            }
                             onExtensionsProbed?.invoke()
                         } catch (_: Exception) { }
                     }, mainExecutor)
@@ -104,6 +110,7 @@ class CameraEngine(
         val baseSelector = CameraSelector.Builder().requireLensFacing(lensFacing).build()
         isHdrSupported = try { ext.isExtensionAvailable(baseSelector, ExtensionMode.HDR) } catch (_: Exception) { false }
         isNightSupported = try { ext.isExtensionAvailable(baseSelector, ExtensionMode.NIGHT) } catch (_: Exception) { false }
+        isAutoExtSupported = try { ext.isExtensionAvailable(baseSelector, ExtensionMode.AUTO) } catch (_: Exception) { false }
     }
 
     fun resolveEffectiveSelector(photoMode: PhotoQualityMode): CameraSelector {
@@ -113,7 +120,8 @@ class CameraEngine(
         val mode = when (photoMode) {
             PhotoQualityMode.HDR -> ExtensionMode.HDR
             PhotoQualityMode.NIGHT -> ExtensionMode.NIGHT
-            else -> return base
+            PhotoQualityMode.QUALITY -> if (isAutoExtSupported) ExtensionMode.AUTO else return base
+            PhotoQualityMode.FAST -> return base
         }
         return try {
             if (ext.isExtensionAvailable(base, mode)) {
@@ -187,6 +195,7 @@ class CameraEngine(
 
             if (photoMode != PhotoQualityMode.FAST) {
                 Camera2Interop.Extender(icBuilder).apply {
+                    setCaptureRequestOption(CaptureRequest.CONTROL_ENABLE_ZSL, false)
                     setCaptureRequestOption(CaptureRequest.EDGE_MODE, CaptureRequest.EDGE_MODE_HIGH_QUALITY)
                     setCaptureRequestOption(CaptureRequest.NOISE_REDUCTION_MODE, CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY)
                     setCaptureRequestOption(CaptureRequest.COLOR_CORRECTION_MODE, CaptureRequest.COLOR_CORRECTION_MODE_HIGH_QUALITY)
@@ -210,13 +219,24 @@ class CameraEngine(
             val exp = info.exposureState
             if (exp.isExposureCompensationSupported) {
                 val range = exp.exposureCompensationRange
-                onExposureRangeChanged?.invoke(range.lower, range.upper, exp.exposureCompensationIndex)
+                var activeIndex = exp.exposureCompensationIndex
+                if (!userAdjustedExposure && activeIndex == 0) {
+                    val step = exp.exposureCompensationStep.toFloat().coerceAtLeast(0.1f)
+                    val lift = kotlin.math.round(0.33f / step).toInt().coerceIn(0, range.upper)
+                    if (lift > 0) {
+                        camera?.cameraControl?.setExposureCompensationIndex(lift)
+                        activeIndex = lift
+                    }
+                }
+                onExposureRangeChanged?.invoke(range.lower, range.upper, activeIndex)
             } else {
                 onExposureRangeChanged?.invoke(0, 0, 0)
             }
         }
         refreshExtensionSupport()
     }
+
+    var userAdjustedExposure: Boolean = false
 
     @androidx.annotation.OptIn(androidx.camera.core.ExperimentalZeroShutterLag::class)
     private fun selectCaptureMode(
