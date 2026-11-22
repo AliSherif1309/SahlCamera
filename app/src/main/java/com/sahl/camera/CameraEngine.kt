@@ -421,7 +421,7 @@ class CameraEngine(
                             }
                         }
                     )
-                }, if (idx == 0) 0L else 120L)
+                }, if (idx == 0) 0L else 180L)
             }, mainExecutor)
         }
 

@@ -52,7 +52,7 @@ class CameraLogicTest {
         val clippedBlack = intArrayOf(0xFF000000.toInt())
         val fused = HdrProcessor.fusePixels(listOf(clippedWhite, wellExposed, clippedBlack), 1, 1)
         val r = (fused[0] ushr 16) and 0xFF
-        // Midtone (128) should dominate over clipped white (255) and clipped black (0)
-        assertTrue("Expected fused midtone near 128, got $r", r in 115..140)
+        // Midtone (128) lifted by tone curve should dominate over clipped white (255) and clipped black (0)
+        assertTrue("Expected fused lifted midtone in 135..175, got $r", r in 135..175)
     }
 }

@@ -48,12 +48,11 @@ object HdrProcessor {
         val bAcc = FloatArray(count)
         val wAcc = FloatArray(count)
 
-        // Precompute well-exposedness lookup table for luminance 0..255
+        // Precompute well-exposedness lookup table centered at 0.58 for brighter natural midtones
         val lut = FloatArray(256) { luma ->
             val norm = luma / 255f
-            val diff = norm - 0.5f
-            // Sigma = 0.25 -> keeps midtones strong, suppresses clipped 0 or 255
-            exp(-(diff * diff) / (2f * 0.25f * 0.25f)) + 0.01f
+            val diff = norm - 0.58f
+            exp(-(diff * diff) / (2f * 0.26f * 0.26f)) + 0.01f
         }
 
         for (pixels in frames) {
@@ -71,15 +70,29 @@ object HdrProcessor {
             }
         }
 
+        val toneLut = buildToneCurveLut()
         val out = IntArray(count)
         for (i in 0 until count) {
             val w = wAcc[i].coerceAtLeast(0.0001f)
-            val r = (rAcc[i] / w).toInt().coerceIn(0, 255)
-            val g = (gAcc[i] / w).toInt().coerceIn(0, 255)
-            val b = (bAcc[i] / w).toInt().coerceIn(0, 255)
+            val r = toneLut[(rAcc[i] / w).toInt().coerceIn(0, 255)]
+            val g = toneLut[(gAcc[i] / w).toInt().coerceIn(0, 255)]
+            val b = toneLut[(bAcc[i] / w).toInt().coerceIn(0, 255)]
             out[i] = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
         }
         return out
+    }
+
+    /**
+     * Highlight-safe tone curve: lifts shadows/midtones (gamma 0.82) while keeping
+     * bright highlights smooth and adding gentle contrast.
+     */
+    private fun buildToneCurveLut(): IntArray = IntArray(256) { v ->
+        val x = v / 255f
+        val lifted = Math.pow(x.toDouble(), 0.82).toFloat()
+        // Gentle S-curve contrast without clipping highlights
+        val contrasted = lifted * lifted * (3f - 2f * lifted)
+        val blended = lifted * 0.78f + contrasted * 0.22f
+        (blended * 255f).toInt().coerceIn(0, 255)
     }
 
     fun fuseAndSave(
@@ -102,8 +115,8 @@ object HdrProcessor {
         val wAcc = FloatArray(count)
         val lut = FloatArray(256) { luma ->
             val norm = luma / 255f
-            val diff = norm - 0.5f
-            exp(-(diff * diff) / (2f * 0.25f * 0.25f)) + 0.01f
+            val diff = norm - 0.58f
+            exp(-(diff * diff) / (2f * 0.26f * 0.26f)) + 0.01f
         }
 
         val rowPixels = IntArray(count)
@@ -121,11 +134,12 @@ object HdrProcessor {
             scaled.recycle()
         }
 
+        val toneLut = buildToneCurveLut()
         for (i in 0 until count) {
             val wt = wAcc[i].coerceAtLeast(0.0001f)
-            val r = (rAcc[i] / wt).toInt().coerceIn(0, 255)
-            val g = (gAcc[i] / wt).toInt().coerceIn(0, 255)
-            val b = (bAcc[i] / wt).toInt().coerceIn(0, 255)
+            val r = toneLut[(rAcc[i] / wt * 1.02f).toInt().coerceIn(0, 255)]
+            val g = toneLut[(gAcc[i] / wt).toInt().coerceIn(0, 255)]
+            val b = toneLut[(bAcc[i] / wt * 0.98f).toInt().coerceIn(0, 255)]
             rowPixels[i] = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
         }
 
