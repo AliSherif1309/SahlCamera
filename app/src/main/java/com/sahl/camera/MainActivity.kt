@@ -369,18 +369,17 @@ class MainActivity : ComponentActivity() {
         exposureContainer.addView(exposureSeek)
 
         // Bottom Controls Container
-        val bottomContainer = LinearLayout(this).apply {
+        bottomContainer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_HORIZONTAL
+            gravity = Gravity.CENTER
             setBackgroundColor(Color.BLACK)
-            setPadding((16 * dp).toInt(), (10 * dp).toInt(), (16 * dp).toInt(), (28 * dp).toInt())
+            setPadding((16 * dp).toInt(), (8 * dp).toInt(), (16 * dp).toInt(), (20 * dp).toInt())
         }
 
         // Zoom Pills
         zoomBar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            setPadding(0, (4 * dp).toInt(), 0, (10 * dp).toInt())
         }
         fun zoomPill(label: String, targetZoom: () -> Float): TextView = TextView(this).apply {
             text = label
@@ -389,7 +388,7 @@ class MainActivity : ComponentActivity() {
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
             background = GradientDrawable().apply {
-                setColor(Color.argb(140, 35, 35, 35))
+                setColor(Color.argb(150, 35, 35, 35))
                 cornerRadius = 16 * dp
             }
             setPadding((10 * dp).toInt(), (5 * dp).toInt(), (10 * dp).toInt(), (5 * dp).toInt())
@@ -407,8 +406,18 @@ class MainActivity : ComponentActivity() {
         zoomBar.addView(zoom1x)
         zoomBar.addView(zoom2x)
 
-        bottomContainer.addView(exposureContainer, LinearLayout.LayoutParams(-2, -2).apply { bottomMargin = (8 * dp).toInt() })
-        bottomContainer.addView(zoomBar)
+        val viewfinderControls = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+        }
+        viewfinderControls.addView(exposureContainer, LinearLayout.LayoutParams(-2, -2).apply { bottomMargin = (6 * dp).toInt() })
+        viewfinderControls.addView(zoomBar)
+        viewfinderFrame.addView(
+            viewfinderControls,
+            FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
+                bottomMargin = (10 * dp).toInt()
+            }
+        )
 
         // Photo / Video Mode Tabs
         val modeTabs = LinearLayout(this).apply {
