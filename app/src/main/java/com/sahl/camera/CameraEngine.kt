@@ -219,16 +219,7 @@ class CameraEngine(
             val exp = info.exposureState
             if (exp.isExposureCompensationSupported) {
                 val range = exp.exposureCompensationRange
-                var activeIndex = exp.exposureCompensationIndex
-                if (!userAdjustedExposure && activeIndex == 0) {
-                    val step = exp.exposureCompensationStep.toFloat().coerceAtLeast(0.1f)
-                    val lift = kotlin.math.round(0.33f / step).toInt().coerceIn(0, range.upper)
-                    if (lift > 0) {
-                        camera?.cameraControl?.setExposureCompensationIndex(lift)
-                        activeIndex = lift
-                    }
-                }
-                onExposureRangeChanged?.invoke(range.lower, range.upper, activeIndex)
+                onExposureRangeChanged?.invoke(range.lower, range.upper, exp.exposureCompensationIndex)
             } else {
                 onExposureRangeChanged?.invoke(0, 0, 0)
             }
