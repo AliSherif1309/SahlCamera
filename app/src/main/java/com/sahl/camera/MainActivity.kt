@@ -750,7 +750,11 @@ class MainActivity : ComponentActivity() {
                 setResult(RESULT_OK, Intent().setData(uri))
                 finish()
             } else {
-                updateThumbnailFromUri(uri, false)
+                lastMediaUri = uri
+                lastMediaIsVideo = false
+                if (prefs.photoMode == PhotoQualityMode.FAST) {
+                    updateThumbnailFromUri(uri, false)
+                }
             }
         }
         val onFailed: (String) -> Unit = { msg ->
@@ -762,6 +766,7 @@ class MainActivity : ComponentActivity() {
             mirrorFront = prefs.mirrorFront,
             location = loc,
             enhanceHd = prefs.photoMode != PhotoQualityMode.FAST,
+            onQuickThumbnail = { bmp -> btnThumbnail.setImageBitmap(bmp) },
             onSaved = onSaved,
             onFailed = onFailed
         )
@@ -805,6 +810,16 @@ class MainActivity : ComponentActivity() {
     private fun openLastMedia() {
         val uri = lastMediaUri ?: return
         val mime = if (lastMediaIsVideo) "video/*" else "image/*"
+        val sahlIntent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, mime)
+            setPackage("com.sahl.gallery")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        try {
+            startActivity(sahlIntent)
+            return
+        } catch (_: Exception) { }
+
         val viewIntent = Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(uri, mime)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)

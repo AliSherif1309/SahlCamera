@@ -111,6 +111,22 @@ object HdEnhancer {
         return out
     }
 
+    fun decodeQuickThumbnail(
+        jpegBytes: ByteArray,
+        rotationDegrees: Int,
+        mirrorHorizontal: Boolean
+    ): Bitmap? {
+        val opts = BitmapFactory.Options().apply { inSampleSize = 16 }
+        val decoded = BitmapFactory.decodeByteArray(jpegBytes, 0, jpegBytes.size, opts) ?: return null
+        if (rotationDegrees == 0 && !mirrorHorizontal) return decoded
+        val m = Matrix()
+        if (rotationDegrees != 0) m.postRotate(rotationDegrees.toFloat())
+        if (mirrorHorizontal) m.postScale(-1f, 1f)
+        return Bitmap.createBitmap(decoded, 0, 0, decoded.width, decoded.height, m, true).also {
+            if (it !== decoded) decoded.recycle()
+        }
+    }
+
     fun enhanceAndSave(
         context: Context,
         jpegBytes: ByteArray,

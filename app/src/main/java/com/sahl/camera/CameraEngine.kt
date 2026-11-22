@@ -340,6 +340,7 @@ class CameraEngine(
         mirrorFront: Boolean,
         location: Location?,
         enhanceHd: Boolean = true,
+        onQuickThumbnail: (android.graphics.Bitmap) -> Unit = {},
         onSaved: (Uri) -> Unit,
         onFailed: (String) -> Unit
     ) {
@@ -352,6 +353,9 @@ class CameraEngine(
                     override fun onCaptureSuccess(image: ImageProxy) {
                         val (bytes, rot) = HdEnhancer.extractBytesAndClose(image)
                         Thread {
+                            HdEnhancer.decodeQuickThumbnail(bytes, rot, mirror)?.let { quick ->
+                                mainExecutor.execute { onQuickThumbnail(quick) }
+                            }
                             val uri = HdEnhancer.enhanceAndSave(context, bytes, rot, mirror, folder)
                             mainExecutor.execute {
                                 if (uri != null) onSaved(uri) else onFailed("HD enhance failed")
