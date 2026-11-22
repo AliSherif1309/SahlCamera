@@ -17,7 +17,9 @@ import android.view.GestureDetector
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.MotionEvent
+import android.view.OrientationEventListener
 import android.view.ScaleGestureDetector
+import android.view.Surface
 import android.view.View
 import android.widget.Button
 import android.widget.FrameLayout
@@ -149,12 +151,33 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private val orientationListener by lazy {
+        object : OrientationEventListener(this) {
+            override fun onOrientationChanged(orientation: Int) {
+                if (orientation == ORIENTATION_UNKNOWN || !::cameraEngine.isInitialized) return
+                val rotation = when (orientation) {
+                    in 45..134 -> Surface.ROTATION_270
+                    in 135..224 -> Surface.ROTATION_180
+                    in 225..314 -> Surface.ROTATION_90
+                    else -> Surface.ROTATION_0
+                }
+                cameraEngine.setTargetRotation(rotation)
+            }
+        }
+    }
+
     override fun onResume() {
         super.onResume()
+        orientationListener.enable()
         overlayView.gridMode = prefs.gridMode
         if (hasCameraPermission()) {
             refreshThumbnail()
         }
+    }
+
+    override fun onPause() {
+        orientationListener.disable()
+        super.onPause()
     }
 
     override fun onDestroy() {
