@@ -178,6 +178,7 @@ class CameraEngine(
         refreshExtensionSupport()
     }
 
+    @androidx.annotation.OptIn(androidx.camera.core.ExperimentalZeroShutterLag::class)
     private fun selectCaptureMode(
         provider: ProcessCameraProvider,
         selector: CameraSelector,
