@@ -117,11 +117,12 @@ class CameraEngine(
     }
 
     fun bindUseCases(
-        provider: ProcessCameraProvider = cameraProvider ?: return,
+        provider: ProcessCameraProvider? = cameraProvider,
         photoMode: PhotoQualityMode,
         videoResolution: VideoResolution,
         flashMode: Int
     ) {
+        val activeProvider = provider ?: return
         val selector = resolveEffectiveSelector(photoMode)
         val rotation = previewView.display?.rotation ?: Surface.ROTATION_0
 
@@ -130,7 +131,7 @@ class CameraEngine(
             .build()
             .also { it.setSurfaceProvider(previewView.surfaceProvider) }
 
-        provider.unbindAll()
+        activeProvider.unbindAll()
 
         if (isVideoMode) {
             val quality = when (videoResolution) {
@@ -147,9 +148,9 @@ class CameraEngine(
             val vc = VideoCapture.withOutput(recorder)
             videoCapture = vc
             imageCapture = null
-            camera = provider.bindToLifecycle(lifecycleOwner, selector, preview, vc)
+            camera = activeProvider.bindToLifecycle(lifecycleOwner, selector, preview, vc)
         } else {
-            val captureMode = selectCaptureMode(provider, selector, photoMode)
+            val captureMode = selectCaptureMode(activeProvider, selector, photoMode)
             val ic = ImageCapture.Builder()
                 .setCaptureMode(captureMode)
                 .setFlashMode(mapFlashMode(flashMode))
@@ -158,7 +159,7 @@ class CameraEngine(
                 .build()
             imageCapture = ic
             videoCapture = null
-            camera = provider.bindToLifecycle(lifecycleOwner, selector, preview, ic)
+            camera = activeProvider.bindToLifecycle(lifecycleOwner, selector, preview, ic)
         }
 
         val info: CameraInfo? = camera?.cameraInfo

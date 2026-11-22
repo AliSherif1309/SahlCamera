@@ -100,7 +100,7 @@ class MainActivity : ComponentActivity() {
         val action = intent?.action
         isExternalImageIntent = action == MediaStore.ACTION_IMAGE_CAPTURE
         isExternalVideoIntent = action == MediaStore.ACTION_VIDEO_CAPTURE
-        if (isExternalVideoIntent || action == MediaStore.ACTION_VIDEO_CAMERA) {
+        if (isExternalVideoIntent || action == MediaStore.INTENT_ACTION_VIDEO_CAMERA) {
             isVideoMode = true
         }
         @Suppress("DEPRECATION")
