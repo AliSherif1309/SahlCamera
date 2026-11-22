@@ -98,6 +98,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         SahlCore.catchCrashes(this)
         prefs = Prefs(this)
+        if (prefs.photoMode == PhotoQualityMode.HDR) prefs.photoMode = PhotoQualityMode.QUALITY
         shutterAudio.preload()
         UpdatePrompt.checkOnStart(this)
 
@@ -584,7 +585,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun cyclePhotoMode() {
-        val available = mutableListOf(PhotoQualityMode.QUALITY, PhotoQualityMode.HDR)
+        val available = mutableListOf(PhotoQualityMode.QUALITY)
         if (cameraEngine.isNightSupported) available.add(PhotoQualityMode.NIGHT)
         available.add(PhotoQualityMode.FAST)
         val idx = available.indexOf(prefs.photoMode)
@@ -754,11 +755,14 @@ class MainActivity : ComponentActivity() {
             Toast.makeText(this, "${getString(R.string.capture_failed)}: $msg", Toast.LENGTH_SHORT).show()
         }
 
-        if (prefs.photoMode == PhotoQualityMode.HDR) {
-            cameraEngine.takeHdrPhoto(prefs.saveFolder, prefs.mirrorFront, loc, onSaved, onFailed)
-        } else {
-            cameraEngine.takePhoto(prefs.saveFolder, prefs.mirrorFront, loc, onSaved, onFailed)
-        }
+        cameraEngine.takePhoto(
+            folder = prefs.saveFolder,
+            mirrorFront = prefs.mirrorFront,
+            location = loc,
+            enhanceHd = prefs.photoMode != PhotoQualityMode.FAST,
+            onSaved = onSaved,
+            onFailed = onFailed
+        )
     }
 
     @SuppressLint("MissingPermission")

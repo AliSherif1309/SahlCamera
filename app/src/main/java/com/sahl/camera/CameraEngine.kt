@@ -339,10 +339,34 @@ class CameraEngine(
         folder: SaveFolder,
         mirrorFront: Boolean,
         location: Location?,
+        enhanceHd: Boolean = true,
         onSaved: (Uri) -> Unit,
         onFailed: (String) -> Unit
     ) {
         val ic = imageCapture ?: return
+        if (enhanceHd) {
+            val mirror = (lensFacing == CameraSelector.LENS_FACING_FRONT) && mirrorFront
+            ic.takePicture(
+                mainExecutor,
+                object : ImageCapture.OnImageCapturedCallback() {
+                    override fun onCaptureSuccess(image: ImageProxy) {
+                        val (bytes, rot) = HdEnhancer.extractBytesAndClose(image)
+                        Thread {
+                            val uri = HdEnhancer.enhanceAndSave(context, bytes, rot, mirror, folder)
+                            mainExecutor.execute {
+                                if (uri != null) onSaved(uri) else onFailed("HD enhance failed")
+                            }
+                        }.start()
+                    }
+
+                    override fun onError(exception: ImageCaptureException) {
+                        onFailed(exception.message ?: "Capture error")
+                    }
+                }
+            )
+            return
+        }
+
         val metadata = ImageCapture.Metadata().apply {
             isReversedHorizontal = (lensFacing == CameraSelector.LENS_FACING_FRONT) && mirrorFront
             if (location != null) this.location = location
@@ -362,70 +386,6 @@ class CameraEngine(
                 }
             }
         )
-    }
-
-    fun takeHdrPhoto(
-        folder: SaveFolder,
-        mirrorFront: Boolean,
-        location: Location?,
-        onSaved: (Uri) -> Unit,
-        onFailed: (String) -> Unit
-    ) {
-        val ic = imageCapture ?: return
-        val cam = camera
-        val exp = cam?.cameraInfo?.exposureState
-        if (isHdrSupported || cam == null || exp == null || !exp.isExposureCompensationSupported) {
-            takePhoto(folder, mirrorFront, location, onSaved, onFailed)
-            return
-        }
-
-        val range = exp.exposureCompensationRange
-        val baseEv = exp.exposureCompensationIndex
-        val step = exp.exposureCompensationStep.toFloat().coerceAtLeast(0.1f)
-        val delta = kotlin.math.round(1.2f / step).toInt().coerceAtLeast(1)
-        val evTargets = listOf(
-            baseEv,
-            (baseEv - delta).coerceIn(range.lower, range.upper),
-            (baseEv + delta).coerceIn(range.lower, range.upper)
-        )
-        val mirror = (lensFacing == CameraSelector.LENS_FACING_FRONT) && mirrorFront
-        val frames = mutableListOf<HdrProcessor.RawFrame>()
-
-        fun captureNext(idx: Int) {
-            if (idx >= evTargets.size) {
-                cam.cameraControl.setExposureCompensationIndex(baseEv)
-                Thread {
-                    val uri = HdrProcessor.fuseAndSave(context, frames, folder, location)
-                    mainExecutor.execute {
-                        if (uri != null) onSaved(uri) else onFailed("HDR fusion failed")
-                    }
-                }.start()
-                return
-            }
-
-            val targetEv = evTargets[idx]
-            val evFuture = cam.cameraControl.setExposureCompensationIndex(targetEv)
-            evFuture.addListener({
-                previewView.postDelayed({
-                    ic.takePicture(
-                        mainExecutor,
-                        object : ImageCapture.OnImageCapturedCallback() {
-                            override fun onCaptureSuccess(image: ImageProxy) {
-                                frames.add(HdrProcessor.imageProxyToRawFrame(image, mirror))
-                                captureNext(idx + 1)
-                            }
-
-                            override fun onError(exception: ImageCaptureException) {
-                                cam.cameraControl.setExposureCompensationIndex(baseEv)
-                                onFailed(exception.message ?: "HDR capture error")
-                            }
-                        }
-                    )
-                }, if (idx == 0) 0L else 180L)
-            }, mainExecutor)
-        }
-
-        captureNext(0)
     }
 
     fun takePhotoToUri(
