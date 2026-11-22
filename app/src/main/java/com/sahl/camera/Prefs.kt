@@ -47,7 +47,7 @@ class Prefs(context: Context) {
     private val sp: SharedPreferences = context.getSharedPreferences("sahl_camera_prefs", Context.MODE_PRIVATE)
 
     var photoMode: PhotoQualityMode
-        get() = PhotoQualityMode.fromId(sp.getInt("photo_mode", PhotoQualityMode.FAST.id))
+        get() = PhotoQualityMode.fromId(sp.getInt("photo_mode", PhotoQualityMode.QUALITY.id))
         set(v) = sp.edit().putInt("photo_mode", v.id).apply()
 
     var videoResolution: VideoResolution

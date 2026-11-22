@@ -130,6 +130,9 @@ class MainActivity : ComponentActivity() {
                 isPaused = paused
                 updateRecordingUi(sec)
             }
+            onExtensionsProbed = {
+                refreshTopBarLabels()
+            }
             onError = { msg ->
                 Toast.makeText(this@MainActivity, msg, Toast.LENGTH_SHORT).show()
             }
@@ -193,17 +196,27 @@ class MainActivity : ComponentActivity() {
             setBackgroundColor(Color.BLACK)
         }
 
-        // Viewfinder using SurfaceView (PERFORMANCE) for lowest latency
+        val mainColumn = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(Color.BLACK)
+        }
+        root.addView(mainColumn, FrameLayout.LayoutParams(-1, -1))
+
+        val viewfinderFrame = FrameLayout(this).apply {
+            setBackgroundColor(Color.BLACK)
+        }
+
+        // Viewfinder using SurfaceView (PERFORMANCE) + FIT_CENTER so preview matches saved photo 1:1
         previewView = PreviewView(this).apply {
             implementationMode = PreviewView.ImplementationMode.PERFORMANCE
-            scaleType = PreviewView.ScaleType.FILL_CENTER
+            scaleType = PreviewView.ScaleType.FIT_CENTER
         }
-        root.addView(previewView, FrameLayout.LayoutParams(-1, -1))
+        viewfinderFrame.addView(previewView, FrameLayout.LayoutParams(-1, -1))
 
         overlayView = GridOverlayView(this).apply {
             gridMode = prefs.gridMode
         }
-        root.addView(overlayView, FrameLayout.LayoutParams(-1, -1))
+        viewfinderFrame.addView(overlayView, FrameLayout.LayoutParams(-1, -1))
 
         // Pinch-to-zoom + Tap-to-focus + Double-tap flip
         val scaleDetector = ScaleGestureDetector(this, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
@@ -239,7 +252,7 @@ class MainActivity : ComponentActivity() {
         topBar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setBackgroundColor(Color.argb(110, 0, 0, 0))
+            setBackgroundColor(Color.BLACK)
             setPadding((14 * dp).toInt(), (40 * dp).toInt(), (14 * dp).toInt(), (10 * dp).toInt())
         }
 
@@ -250,7 +263,7 @@ class MainActivity : ComponentActivity() {
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
             background = GradientDrawable().apply {
-                setColor(Color.argb(120, 30, 30, 30))
+                setColor(Color.argb(180, 32, 32, 32))
                 cornerRadius = 18 * dp
             }
             setPadding((12 * dp).toInt(), (7 * dp).toInt(), (12 * dp).toInt(), (7 * dp).toInt())
@@ -290,7 +303,8 @@ class MainActivity : ComponentActivity() {
         topBar.addView(btnTimer)
         topBar.addView(spacer)
         topBar.addView(btnSettings)
-        root.addView(topBar, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
+        mainColumn.addView(topBar, LinearLayout.LayoutParams(-1, -2))
+        mainColumn.addView(viewfinderFrame, LinearLayout.LayoutParams(-1, 0, 1f))
 
         // Recording Timer Badge
         recordingBadge = TextView(this).apply {
@@ -351,7 +365,7 @@ class MainActivity : ComponentActivity() {
         val bottomContainer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
-            setBackgroundColor(Color.argb(145, 0, 0, 0))
+            setBackgroundColor(Color.BLACK)
             setPadding((16 * dp).toInt(), (10 * dp).toInt(), (16 * dp).toInt(), (28 * dp).toInt())
         }
 
@@ -500,7 +514,7 @@ class MainActivity : ComponentActivity() {
         shutterRow.addView(rightSlot)
         bottomContainer.addView(shutterRow, LinearLayout.LayoutParams(-1, -2))
 
-        root.addView(bottomContainer, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
+        mainColumn.addView(bottomContainer, LinearLayout.LayoutParams(-1, -2))
 
         // Permission Overlay
         permissionOverlay = LinearLayout(this).apply {
@@ -630,7 +644,7 @@ class MainActivity : ComponentActivity() {
                         setResult(RESULT_OK, Intent().setData(uri))
                         finish()
                     } else {
-                        refreshThumbnail()
+                        updateThumbnailFromUri(uri, true)
                     }
                 },
                 onFailed = { msg ->
@@ -689,7 +703,7 @@ class MainActivity : ComponentActivity() {
                     setResult(RESULT_OK, Intent().setData(uri))
                     finish()
                 } else {
-                    refreshThumbnail()
+                    updateThumbnailFromUri(uri, false)
                 }
             },
             onFailed = { msg ->
@@ -706,6 +720,18 @@ class MainActivity : ComponentActivity() {
         val lm = getSystemService(LocationManager::class.java) ?: return null
         return lm.getLastKnownLocation(LocationManager.GPS_PROVIDER)
             ?: lm.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+    }
+
+    private fun updateThumbnailFromUri(uri: Uri, isVideo: Boolean) {
+        lastMediaUri = uri
+        lastMediaIsVideo = isVideo
+        Thread {
+            val bmp = MediaSaver.loadThumbnailForUri(this, uri)
+            runOnUiThread {
+                if (bmp != null) btnThumbnail.setImageBitmap(bmp)
+                else refreshThumbnail()
+            }
+        }.start()
     }
 
     private fun refreshThumbnail() {
