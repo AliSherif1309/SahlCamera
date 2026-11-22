@@ -629,9 +629,11 @@ class MainActivity : ComponentActivity() {
 
         val screenW = resources.displayMetrics.widthPixels
         if (isVideoMode) {
+            previewView.scaleType = PreviewView.ScaleType.FILL_CENTER
             viewfinderFrame.layoutParams = LinearLayout.LayoutParams(-1, 0, 1f)
             bottomContainer.layoutParams = LinearLayout.LayoutParams(-1, -2)
         } else {
+            previewView.scaleType = PreviewView.ScaleType.FIT_CENTER
             viewfinderFrame.layoutParams = LinearLayout.LayoutParams(-1, (screenW * 4f / 3f).toInt())
             bottomContainer.layoutParams = LinearLayout.LayoutParams(-1, 0, 1f)
         }
