@@ -28,9 +28,9 @@ class SettingsActivity : Activity() {
         prefs = Prefs(this)
         dark = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
 
-        val bg = if (dark) Color.parseColor("#111315") else Color.parseColor("#F5F6F5")
-        val cardBg = if (dark) Color.parseColor("#1C2023") else Color.WHITE
-        val textPrimary = if (dark) Color.WHITE else Color.parseColor("#14171A")
+        val bg = if (dark) Color.parseColor("#0B110F") else Color.parseColor("#F7F5EE")
+        val cardBg = if (dark) Color.parseColor("#131C19") else Color.WHITE
+        val textPrimary = if (dark) Color.WHITE else Color.parseColor("#111C18")
         val textSecondary = if (dark) Color.parseColor("#9AA3AB") else Color.parseColor("#5C666F")
         val accent = Color.parseColor("#0E6B4E")
         val dp = resources.displayMetrics.density
@@ -73,7 +73,7 @@ class SettingsActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             background = GradientDrawable().apply {
                 setColor(cardBg)
-                cornerRadius = 16 * dp
+                cornerRadius = 22 * dp
             }
             setPadding((16 * dp).toInt(), (6 * dp).toInt(), (16 * dp).toInt(), (6 * dp).toInt())
             val lp = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = (14 * dp).toInt() }
@@ -260,6 +260,18 @@ class SettingsActivity : Activity() {
         }
         cardAbout.addView(updateRow)
         content.addView(cardAbout)
+
+        val goldHdr = if (dark) Color.parseColor("#F5C84C") else Color.parseColor("#B88922")
+        val cardUnion = card()
+        cardUnion.addView(TextView(this).apply {
+            text = if (resources.configuration.locales[0].language == "ar") "اتحاد سهل" else "Sahl Union"
+            textSize = 13f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(goldHdr)
+            setPadding(0, (8 * dp).toInt(), 0, (4 * dp).toInt())
+        })
+        cardUnion.addView(SahlUnionApps.strip(this, textSecondary))
+        content.addView(cardUnion)
 
         root.addView(ScrollView(this).apply { addView(content) }, LinearLayout.LayoutParams(-1, 0, 1f))
         setContentView(root)
