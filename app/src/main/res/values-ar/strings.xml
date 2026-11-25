@@ -39,4 +39,9 @@
     <string name="setting_updates">التحديثات</string>
     <string name="version_label">الإصدار %1$s</string>
     <string name="no_gallery_app">لم يتم العثور على تطبيق عرض</string>
+    <string name="qr_detected">تم اكتشاف رمز QR</string>
+    <string name="qr_open">فتح</string>
+    <string name="qr_copy">نسخ</string>
+    <string name="qr_copied">تم النسخ</string>
+    <string name="qr_check_sahl">فحص في أدوات سهل</string>
 </resources>

@@ -39,4 +39,9 @@
     <string name="setting_updates">Updates</string>
     <string name="version_label">Version %1$s</string>
     <string name="no_gallery_app">No viewer app found</string>
+    <string name="qr_detected">QR Detected</string>
+    <string name="qr_open">Open</string>
+    <string name="qr_copy">Copy</string>
+    <string name="qr_copied">Copied</string>
+    <string name="qr_check_sahl">Check in Sahl Tools</string>
 </resources>

@@ -55,4 +55,17 @@ class CameraLogicTest {
         val r = (enhanced[4] ushr 16) and 0xFF
         assertTrue("Expected dark midtone (96) to lift, got $r", r > 96)
     }
+
+    @Test
+    fun qrDecoderParsesUrlsAndWifiSummaries() {
+        assertTrue(QrDecoder.isUrl("https://example.com/path"))
+        assertTrue(QrDecoder.isUrl("  HTTP://sahl.app  "))
+        assertTrue(!QrDecoder.isUrl("WIFI:S:HomeNet;T:WPA;P:secret;;"))
+
+        assertEquals("Wi-Fi: HomeNet", QrDecoder.parseQrSummary("WIFI:S:HomeNet;T:WPA;P:secret;;"))
+        val longText = "a".repeat(50)
+        val summary = QrDecoder.parseQrSummary(longText)
+        assertEquals(41, summary.length)
+        assertTrue(summary.endsWith("…"))
+    }
 }
