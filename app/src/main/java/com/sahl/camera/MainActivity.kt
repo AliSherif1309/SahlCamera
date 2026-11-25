@@ -639,10 +639,11 @@ class MainActivity : ComponentActivity() {
             prefs.flashMode == 2 -> "⚡ ${getString(R.string.flash_off)}"
             else -> "⚡ ${getString(R.string.flash_auto)}"
         }
-        val isBack = cameraEngine.lensFacing == CameraSelector.LENS_FACING_BACK
+        val isBack = !::cameraEngine.isInitialized || cameraEngine.lensFacing == CameraSelector.LENS_FACING_BACK
+        val torchOn = ::cameraEngine.isInitialized && cameraEngine.isTorchOn
         btnTorch.visibility = if (isBack) View.VISIBLE else View.GONE
         btnTorch.background = GradientDrawable().apply {
-            setColor(if (cameraEngine.isTorchOn) 0xFF0E6B4E.toInt() else 0x88222222.toInt())
+            setColor(if (torchOn) 0xFF0E6B4E.toInt() else 0x88222222.toInt())
             cornerRadius = resources.displayMetrics.density * 16f
         }
         btnQuality.visibility = if (isVideoMode) View.GONE else View.VISIBLE
