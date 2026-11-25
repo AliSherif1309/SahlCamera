@@ -15,6 +15,7 @@ import androidx.camera.core.Camera
 import androidx.camera.core.CameraInfo
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.FocusMeteringAction
+import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.ImageProxy
@@ -35,6 +36,7 @@ import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import java.util.concurrent.Executor
+import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
 class CameraEngine(
@@ -43,6 +45,7 @@ class CameraEngine(
     private val previewView: PreviewView
 ) {
     private val mainExecutor: Executor = ContextCompat.getMainExecutor(context)
+    private val analysisExecutor = Executors.newSingleThreadExecutor()
 
     private var cameraProvider: ProcessCameraProvider? = null
     private var extensionsManager: ExtensionsManager? = null
@@ -54,6 +57,8 @@ class CameraEngine(
     var lensFacing: Int = CameraSelector.LENS_FACING_BACK
         private set
     var isVideoMode: Boolean = false
+        private set
+    var isTorchOn: Boolean = false
         private set
     var isHdrSupported: Boolean = false
         private set
@@ -70,10 +75,21 @@ class CameraEngine(
         videoCapture?.targetRotation = rotation
     }
 
+    fun toggleTorch(): Boolean {
+        if (lensFacing != CameraSelector.LENS_FACING_BACK) {
+            isTorchOn = false
+            return false
+        }
+        isTorchOn = !isTorchOn
+        camera?.cameraControl?.enableTorch(isTorchOn)
+        return isTorchOn
+    }
+
     var onZoomRangeChanged: ((minZoom: Float, maxZoom: Float, currentZoom: Float) -> Unit)? = null
     var onExposureRangeChanged: ((minIndex: Int, maxIndex: Int, currentIndex: Int) -> Unit)? = null
     var onRecordingStateChanged: ((isRecording: Boolean, isPaused: Boolean, durationSec: Long) -> Unit)? = null
     var onExtensionsProbed: (() -> Unit)? = null
+    var onQrDetected: ((String) -> Unit)? = null
     var onError: ((String) -> Unit)? = null
 
     fun start(
@@ -251,8 +267,27 @@ class CameraEngine(
             val ic = icBuilder.build()
             imageCapture = ic
             videoCapture = null
-            camera = activeProvider.bindToLifecycle(lifecycleOwner, selector, preview, ic)
+
+            val analysis = ImageAnalysis.Builder()
+                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                .build()
+                .also { ia ->
+                    ia.setAnalyzer(analysisExecutor, QrDecoder { text ->
+                        mainExecutor.execute { onQrDetected?.invoke(text) }
+                    })
+                }
+
+            camera = try {
+                activeProvider.bindToLifecycle(lifecycleOwner, selector, preview, ic, analysis)
+            } catch (_: Exception) {
+                activeProvider.bindToLifecycle(lifecycleOwner, selector, preview, ic)
+            }
         }
+
+        if (lensFacing != CameraSelector.LENS_FACING_BACK) {
+            isTorchOn = false
+        }
+        camera?.cameraControl?.enableTorch(isTorchOn)
 
         val info: CameraInfo? = camera?.cameraInfo
         if (info != null) {
@@ -305,7 +340,7 @@ class CameraEngine(
 
     fun setFlashMode(flashMode: Int) {
         if (isVideoMode) {
-            camera?.cameraControl?.enableTorch(flashMode == 1)
+            camera?.cameraControl?.enableTorch(isTorchOn || flashMode == 1)
         } else {
             imageCapture?.flashMode = mapFlashMode(flashMode)
         }
@@ -478,6 +513,7 @@ class CameraEngine(
         activeRecording?.stop()
         activeRecording = null
         cameraProvider?.unbindAll()
+        analysisExecutor.shutdownNow()
     }
 
     companion object {

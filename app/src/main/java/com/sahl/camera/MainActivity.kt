@@ -2,6 +2,9 @@ package com.sahl.camera
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.app.AlertDialog
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
@@ -46,9 +49,13 @@ class MainActivity : ComponentActivity() {
     private lateinit var bottomContainer: LinearLayout
     private lateinit var topBar: LinearLayout
     private lateinit var btnFlash: TextView
+    private lateinit var btnTorch: TextView
     private lateinit var btnQuality: TextView
     private lateinit var btnTimer: TextView
     private lateinit var btnSettings: TextView
+    private lateinit var qrBanner: TextView
+    private var lastQrText: String? = null
+    private val hideQrRunnable = Runnable { if (::qrBanner.isInitialized) qrBanner.visibility = View.GONE }
 
     private lateinit var timerCountdownText: TextView
     private lateinit var recordingBadge: TextView
@@ -137,6 +144,9 @@ class MainActivity : ComponentActivity() {
             }
             onExtensionsProbed = {
                 refreshTopBarLabels()
+            }
+            onQrDetected = { text ->
+                showQrBanner(text)
             }
             onError = { msg ->
                 Toast.makeText(this@MainActivity, msg, Toast.LENGTH_SHORT).show()
@@ -302,6 +312,10 @@ class MainActivity : ComponentActivity() {
             cameraEngine.setFlashMode(prefs.flashMode)
             refreshTopBarLabels()
         }
+        btnTorch = topPill("💡") {
+            cameraEngine.toggleTorch()
+            refreshTopBarLabels()
+        }
         btnQuality = topPill("") {
             if (!isVideoMode) {
                 cyclePhotoMode()
@@ -325,6 +339,7 @@ class MainActivity : ComponentActivity() {
         }
 
         topBar.addView(btnFlash)
+        topBar.addView(btnTorch)
         topBar.addView(btnQuality)
         topBar.addView(btnTimer)
         topBar.addView(spacer)
@@ -333,6 +348,28 @@ class MainActivity : ComponentActivity() {
         val fourByThreeH = (screenW * 4f / 3f).toInt()
         mainColumn.addView(topBar, LinearLayout.LayoutParams(-1, -2))
         mainColumn.addView(viewfinderFrame, LinearLayout.LayoutParams(-1, fourByThreeH))
+
+        qrBanner = TextView(this).apply {
+            setTextColor(Color.WHITE)
+            textSize = 13f
+            setTypeface(typeface, Typeface.BOLD)
+            setPadding(dp(14), dp(8), dp(14), dp(8))
+            background = GradientDrawable().apply {
+                setColor(0xCC0E6B4E.toInt())
+                cornerRadius = dp(20).toFloat()
+            }
+            visibility = View.GONE
+            setOnClickListener {
+                lastQrText?.let { showQrDialog(it) }
+            }
+        }
+        viewfinderFrame.addView(
+            qrBanner,
+            FrameLayout.LayoutParams(-2, -2).apply {
+                gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+                topMargin = dp(12)
+            }
+        )
 
         // Recording Timer Badge
         recordingBadge = TextView(this).apply {
@@ -602,6 +639,12 @@ class MainActivity : ComponentActivity() {
             prefs.flashMode == 2 -> "⚡ ${getString(R.string.flash_off)}"
             else -> "⚡ ${getString(R.string.flash_auto)}"
         }
+        val isBack = cameraEngine.lensFacing == CameraSelector.LENS_FACING_BACK
+        btnTorch.visibility = if (isBack) View.VISIBLE else View.GONE
+        btnTorch.background = GradientDrawable().apply {
+            setColor(if (cameraEngine.isTorchOn) 0xFF0E6B4E.toInt() else 0x88222222.toInt())
+            cornerRadius = dp(16).toFloat()
+        }
         btnQuality.visibility = if (isVideoMode) View.GONE else View.VISIBLE
         btnTimer.visibility = if (isVideoMode) View.GONE else View.VISIBLE
 
@@ -616,6 +659,60 @@ class MainActivity : ComponentActivity() {
             10 -> "⏱ ${getString(R.string.timer_10s)}"
             else -> "⏱ ${getString(R.string.timer_off)}"
         }
+    }
+
+    private fun showQrBanner(text: String) {
+        runOnUiThread {
+            if (!::qrBanner.isInitialized) return@runOnUiThread
+            lastQrText = text
+            qrBanner.text = "🔍 ${QrDecoder.parseQrSummary(text)}"
+            qrBanner.visibility = View.VISIBLE
+            qrBanner.removeCallbacks(hideQrRunnable)
+            qrBanner.postDelayed(hideQrRunnable, 4000L)
+        }
+    }
+
+    private fun showQrDialog(text: String) {
+        val actions = mutableListOf<Pair<String, () -> Unit>>()
+        if (QrDecoder.isUrl(text)) {
+            actions.add(getString(R.string.qr_open) to {
+                try {
+                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(text)))
+                } catch (_: Exception) {}
+            })
+        }
+        actions.add(getString(R.string.qr_copy) to {
+            val cm = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
+            cm.setPrimaryClip(ClipData.newPlainText("QR", text))
+            Toast.makeText(this, getString(R.string.qr_copied), Toast.LENGTH_SHORT).show()
+        })
+        actions.add(getString(R.string.qr_check_sahl) to {
+            try {
+                val intent = Intent().apply {
+                    setClassName("com.sahl.tools", "com.sahl.tools.LinkActivity")
+                    putExtra(Intent.EXTRA_TEXT, text)
+                }
+                startActivity(intent)
+            } catch (_: Exception) {
+                Toast.makeText(this, "Sahl Tools not installed", Toast.LENGTH_SHORT).show()
+            }
+        })
+        actions.add("Share" to {
+            val share = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, text)
+            }
+            startActivity(Intent.createChooser(share, null))
+        })
+
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.qr_detected))
+            .setMessage(text)
+            .setItems(actions.map { it.first }.toTypedArray()) { _, which ->
+                actions[which].second.invoke()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     private fun refreshModeTabs() {
