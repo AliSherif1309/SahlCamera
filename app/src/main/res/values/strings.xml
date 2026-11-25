@@ -40,8 +40,16 @@
     <string name="version_label">Version %1$s</string>
     <string name="no_gallery_app">No viewer app found</string>
     <string name="qr_detected">QR Detected</string>
-    <string name="qr_open">Open</string>
+    <string name="qr_open">Open Link</string>
     <string name="qr_copy">Copy</string>
     <string name="qr_copied">Copied</string>
     <string name="qr_check_sahl">Check in Sahl Tools</string>
+    <string name="qr_share">Share</string>
+    <string name="qr_call">Call Number</string>
+    <string name="qr_email">Send Email</string>
+    <string name="qr_sms">Send Message</string>
+    <string name="qr_maps">Open in Maps</string>
+    <string name="qr_wifi_settings">Open Wi-Fi Settings</string>
+    <string name="qr_copy_password">Copy Wi-Fi Password</string>
+    <string name="qr_search_web">Search on Web</string>
 </resources>

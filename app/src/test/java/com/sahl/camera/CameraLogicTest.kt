@@ -63,6 +63,18 @@ class CameraLogicTest {
         assertTrue(!QrDecoder.isUrl("WIFI:S:HomeNet;T:WPA;P:secret;;"))
 
         assertEquals("Wi-Fi: HomeNet", QrDecoder.parseQrSummary("WIFI:S:HomeNet;T:WPA;P:secret;;"))
+        val wifi = QrDecoder.parse("WIFI:S:HomeNet;T:WPA;P:secret;;")
+        assertEquals(QrDecoder.Companion.QrType.WIFI, wifi.type)
+        assertEquals("HomeNet", wifi.wifiSsid)
+        assertEquals("secret", wifi.wifiPassword)
+
+        assertEquals(QrDecoder.Companion.QrType.URL, QrDecoder.parse("https://youtube.com/@test").type)
+        assertEquals(QrDecoder.Companion.QrType.TEL, QrDecoder.parse("tel:+123456789").type)
+        assertEquals(QrDecoder.Companion.QrType.MAILTO, QrDecoder.parse("mailto:hi@example.com").type)
+        assertEquals(QrDecoder.Companion.QrType.SMS, QrDecoder.parse("smsto:12345:hello").type)
+        assertEquals(QrDecoder.Companion.QrType.GEO, QrDecoder.parse("geo:25.2854,51.5310").type)
+        assertEquals(QrDecoder.Companion.QrType.TEXT, QrDecoder.parse("1234567890128").type)
+
         val longText = "a".repeat(50)
         val summary = QrDecoder.parseQrSummary(longText)
         assertEquals(41, summary.length)

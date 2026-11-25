@@ -69,18 +69,54 @@ class QrDecoder(
     }
 
     companion object {
+        enum class QrType { URL, WIFI, TEL, MAILTO, SMS, GEO, TEXT }
+
+        data class QrParsed(
+            val type: QrType,
+            val raw: String,
+            val summary: String,
+            val wifiSsid: String? = null,
+            val wifiPassword: String? = null
+        )
+
         fun isUrl(raw: String): Boolean {
             val t = raw.trim().lowercase()
             return t.startsWith("http://") || t.startsWith("https://")
         }
 
-        fun parseQrSummary(raw: String): String {
+        fun parseQrSummary(raw: String): String = parse(raw).summary
+
+        fun parse(raw: String): QrParsed {
             val trimmed = raw.trim()
-            if (trimmed.startsWith("WIFI:", ignoreCase = true)) {
-                val ssid = Regex("S:([^;]+)").find(trimmed)?.groupValues?.getOrNull(1)
-                if (!ssid.isNullOrBlank()) return "Wi-Fi: $ssid"
+            val lower = trimmed.lowercase()
+            return when {
+                lower.startsWith("http://") || lower.startsWith("https://") -> {
+                    val short = if (trimmed.length > 42) trimmed.take(40) + "…" else trimmed
+                    QrParsed(QrType.URL, trimmed, short)
+                }
+                lower.startsWith("wifi:") -> {
+                    val ssid = Regex("S:([^;]+)").find(trimmed)?.groupValues?.getOrNull(1)
+                    val pass = Regex("P:([^;]+)").find(trimmed)?.groupValues?.getOrNull(1)
+                    val summary = if (!ssid.isNullOrBlank()) "Wi-Fi: $ssid" else "Wi-Fi"
+                    QrParsed(QrType.WIFI, trimmed, summary, wifiSsid = ssid, wifiPassword = pass)
+                }
+                lower.startsWith("tel:") -> {
+                    QrParsed(QrType.TEL, trimmed, trimmed.removePrefix("tel:").removePrefix("TEL:"))
+                }
+                lower.startsWith("mailto:") -> {
+                    QrParsed(QrType.MAILTO, trimmed, trimmed.substringAfter(":").substringBefore("?"))
+                }
+                lower.startsWith("smsto:") || lower.startsWith("sms:") -> {
+                    QrParsed(QrType.SMS, trimmed, trimmed.substringAfter(":").substringBefore(":"))
+                }
+                lower.startsWith("geo:") -> {
+                    QrParsed(QrType.GEO, trimmed, trimmed.substringAfter(":").substringBefore("?"))
+                }
+                else -> {
+                    val short = if (trimmed.length > 42) trimmed.take(40) + "…" else trimmed
+                    QrParsed(QrType.TEXT, trimmed, short)
+                }
             }
-            return if (trimmed.length > 42) trimmed.take(40) + "…" else trimmed
         }
     }
 }

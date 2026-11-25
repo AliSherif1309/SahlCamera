@@ -674,46 +674,135 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun showQrDialog(text: String) {
+        val parsed = QrDecoder.parse(text)
         val actions = mutableListOf<Pair<String, () -> Unit>>()
-        if (QrDecoder.isUrl(text)) {
-            actions.add(getString(R.string.qr_open) to {
-                try {
-                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(text)))
-                } catch (_: Exception) {}
-            })
+
+        when (parsed.type) {
+            QrDecoder.Companion.QrType.URL -> {
+                actions.add("🌐 ${getString(R.string.qr_open)}" to {
+                    try {
+                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(parsed.raw)))
+                    } catch (_: Exception) {}
+                })
+                actions.add("🛡️ ${getString(R.string.qr_check_sahl)}" to {
+                    try {
+                        val intent = Intent().apply {
+                            setClassName("com.sahl.tools", "com.sahl.tools.LinkActivity")
+                            putExtra(Intent.EXTRA_TEXT, parsed.raw)
+                        }
+                        startActivity(intent)
+                    } catch (_: Exception) {
+                        Toast.makeText(this, "Sahl Tools not installed", Toast.LENGTH_SHORT).show()
+                    }
+                })
+            }
+            QrDecoder.Companion.QrType.WIFI -> {
+                if (!parsed.wifiPassword.isNullOrEmpty()) {
+                    actions.add("🔑 ${getString(R.string.qr_copy_password)}" to {
+                        val cm = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
+                        cm.setPrimaryClip(ClipData.newPlainText("Wi-Fi Password", parsed.wifiPassword))
+                        Toast.makeText(this, getString(R.string.qr_copied), Toast.LENGTH_SHORT).show()
+                    })
+                }
+                actions.add("📶 ${getString(R.string.qr_wifi_settings)}" to {
+                    try {
+                        startActivity(Intent(android.provider.Settings.ACTION_WIFI_SETTINGS))
+                    } catch (_: Exception) {}
+                })
+            }
+            QrDecoder.Companion.QrType.TEL -> {
+                actions.add("📞 ${getString(R.string.qr_call)}" to {
+                    try {
+                        startActivity(Intent(Intent.ACTION_DIAL, Uri.parse(parsed.raw)))
+                    } catch (_: Exception) {}
+                })
+            }
+            QrDecoder.Companion.QrType.MAILTO -> {
+                actions.add("✉️ ${getString(R.string.qr_email)}" to {
+                    try {
+                        startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse(parsed.raw)))
+                    } catch (_: Exception) {}
+                })
+            }
+            QrDecoder.Companion.QrType.SMS -> {
+                actions.add("💬 ${getString(R.string.qr_sms)}" to {
+                    try {
+                        startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse(parsed.raw)))
+                    } catch (_: Exception) {}
+                })
+            }
+            QrDecoder.Companion.QrType.GEO -> {
+                actions.add("📍 ${getString(R.string.qr_maps)}" to {
+                    try {
+                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(parsed.raw)))
+                    } catch (_: Exception) {}
+                })
+            }
+            QrDecoder.Companion.QrType.TEXT -> {
+                actions.add("🔍 ${getString(R.string.qr_search_web)}" to {
+                    try {
+                        val q = Uri.encode(parsed.raw)
+                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/search?q=$q")))
+                    } catch (_: Exception) {}
+                })
+            }
         }
-        actions.add(getString(R.string.qr_copy) to {
+
+        actions.add("📋 ${getString(R.string.qr_copy)}" to {
             val cm = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
-            cm.setPrimaryClip(ClipData.newPlainText("QR", text))
+            cm.setPrimaryClip(ClipData.newPlainText("QR", parsed.raw))
             Toast.makeText(this, getString(R.string.qr_copied), Toast.LENGTH_SHORT).show()
         })
-        actions.add(getString(R.string.qr_check_sahl) to {
-            try {
-                val intent = Intent().apply {
-                    setClassName("com.sahl.tools", "com.sahl.tools.LinkActivity")
-                    putExtra(Intent.EXTRA_TEXT, text)
-                }
-                startActivity(intent)
-            } catch (_: Exception) {
-                Toast.makeText(this, "Sahl Tools not installed", Toast.LENGTH_SHORT).show()
-            }
-        })
-        actions.add("Share" to {
+        actions.add("📤 ${getString(R.string.qr_share)}" to {
             val share = Intent(Intent.ACTION_SEND).apply {
                 type = "text/plain"
-                putExtra(Intent.EXTRA_TEXT, text)
+                putExtra(Intent.EXTRA_TEXT, parsed.raw)
             }
             startActivity(Intent.createChooser(share, null))
         })
 
-        AlertDialog.Builder(this)
+        val dp = resources.displayMetrics.density
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding((20 * dp).toInt(), (12 * dp).toInt(), (20 * dp).toInt(), (4 * dp).toInt())
+        }
+        val contentView = TextView(this).apply {
+            this.text = parsed.raw
+            textSize = 14f
+            setTextIsSelectable(true)
+            setPadding(0, 0, 0, (12 * dp).toInt())
+        }
+        container.addView(contentView)
+
+        val dialog = AlertDialog.Builder(this)
             .setTitle(getString(R.string.qr_detected))
-            .setMessage(text)
-            .setItems(actions.map { it.first }.toTypedArray()) { _, which ->
-                actions[which].second.invoke()
-            }
+            .setView(container)
             .setNegativeButton(android.R.string.cancel, null)
-            .show()
+            .create()
+
+        actions.forEachIndexed { idx, (label, action) ->
+            val btn = TextView(this).apply {
+                this.text = label
+                textSize = 15f
+                setTextColor(Color.WHITE)
+                setTypeface(typeface, Typeface.BOLD)
+                setPadding((14 * dp).toInt(), (11 * dp).toInt(), (14 * dp).toInt(), (11 * dp).toInt())
+                background = GradientDrawable().apply {
+                    setColor(if (idx == 0) 0xFF0E6B4E.toInt() else 0xFF2B2E33.toInt())
+                    cornerRadius = 12 * dp
+                }
+                layoutParams = LinearLayout.LayoutParams(-1, -2).apply {
+                    topMargin = (8 * dp).toInt()
+                }
+                setOnClickListener {
+                    dialog.dismiss()
+                    action.invoke()
+                }
+            }
+            container.addView(btn)
+        }
+
+        dialog.show()
     }
 
     private fun refreshModeTabs() {
