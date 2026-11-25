@@ -353,10 +353,10 @@ class MainActivity : ComponentActivity() {
             setTextColor(Color.WHITE)
             textSize = 13f
             setTypeface(typeface, Typeface.BOLD)
-            setPadding(dp(14), dp(8), dp(14), dp(8))
+            setPadding((14 * dp).toInt(), (8 * dp).toInt(), (14 * dp).toInt(), (8 * dp).toInt())
             background = GradientDrawable().apply {
                 setColor(0xCC0E6B4E.toInt())
-                cornerRadius = dp(20).toFloat()
+                cornerRadius = 20 * dp
             }
             visibility = View.GONE
             setOnClickListener {
@@ -367,7 +367,7 @@ class MainActivity : ComponentActivity() {
             qrBanner,
             FrameLayout.LayoutParams(-2, -2).apply {
                 gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-                topMargin = dp(12)
+                topMargin = (12 * dp).toInt()
             }
         )
 
@@ -643,7 +643,7 @@ class MainActivity : ComponentActivity() {
         btnTorch.visibility = if (isBack) View.VISIBLE else View.GONE
         btnTorch.background = GradientDrawable().apply {
             setColor(if (cameraEngine.isTorchOn) 0xFF0E6B4E.toInt() else 0x88222222.toInt())
-            cornerRadius = dp(16).toFloat()
+            cornerRadius = resources.displayMetrics.density * 16f
         }
         btnQuality.visibility = if (isVideoMode) View.GONE else View.VISIBLE
         btnTimer.visibility = if (isVideoMode) View.GONE else View.VISIBLE
