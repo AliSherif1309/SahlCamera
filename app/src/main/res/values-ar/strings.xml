@@ -40,8 +40,16 @@
     <string name="version_label">الإصدار %1$s</string>
     <string name="no_gallery_app">لم يتم العثور على تطبيق عرض</string>
     <string name="qr_detected">تم اكتشاف رمز QR</string>
-    <string name="qr_open">فتح</string>
+    <string name="qr_open">فتح الرابط</string>
     <string name="qr_copy">نسخ</string>
     <string name="qr_copied">تم النسخ</string>
     <string name="qr_check_sahl">فحص في أدوات سهل</string>
+    <string name="qr_share">مشاركة</string>
+    <string name="qr_call">اتصال بالرقم</string>
+    <string name="qr_email">إرسال بريد إلكتروني</string>
+    <string name="qr_sms">إرسال رسالة</string>
+    <string name="qr_maps">فتح في الخرائط</string>
+    <string name="qr_wifi_settings">فتح إعدادات Wi-Fi</string>
+    <string name="qr_copy_password">نسخ كلمة مرور Wi-Fi</string>
+    <string name="qr_search_web">بحث في الويب</string>
 </resources>
